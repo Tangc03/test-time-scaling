@@ -60,7 +60,7 @@ from diffusers import VQModel
 
 # 配置参数
 model_path = "checkpoints/Meissonic"
-steps = 100
+steps = 48
 CFG = 9
 resolution = 1024
 negative_prompt = "worst quality, low quality, low res, blurry, distortion, watermark, logo, signature, text, jpeg artifacts, signature, sketch, duplicate, ugly, identifying mark"
