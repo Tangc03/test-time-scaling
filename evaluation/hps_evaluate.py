@@ -90,7 +90,7 @@ def generate_images(accelerator, args):
             accelerator.wait_for_everyone()
 
             # 处理任务
-            for task in distributed_tasks:
+            for task in tqdm(distributed_tasks):
                 style, prompt_idx, prompt = task
                 save_dir = os.path.join(args.output_dir, model_name, style)
                 os.makedirs(save_dir, exist_ok=True)
@@ -111,14 +111,12 @@ def generate_images(accelerator, args):
             if accelerator.is_main_process:
                 progress_bar.close()
 
-def evaluate_images(accelerator, args):
+def evaluate_images(args):
     """分布式评估实现"""
     # 只在主进程执行评估
-    if accelerator.is_local_main_process:
-        print(f"Starting evaluation with HPS {args.hps_version}")
-        score = hpsv2.evaluate(args.input_dir, hps_version=args.hps_version)
-        print(f"Final HPS-{args.hps_version} Score: {score:.4f}")
-    accelerator.wait_for_everyone()
+    print(f"Starting evaluation with HPS {args.hps_version}")
+    score = hpsv2.evaluate(args.input_dir, hps_version=args.hps_version)
+    print(f"Final HPS-{args.hps_version} Score: {score}")
 
 def sample_inference(accelerator, args):
     """基于采样prompts的生成实现"""
@@ -162,7 +160,7 @@ def sample_inference(accelerator, args):
             accelerator.wait_for_everyone()
 
             # 处理任务
-            for task in distributed_tasks:
+            for task in tqdm(distributed_tasks):
                 style, prompt_idx, prompt = task
                 save_dir = os.path.join(output_root, style, str(prompt_idx))
                 os.makedirs(save_dir, exist_ok=True)
@@ -194,17 +192,22 @@ def sample_inference(accelerator, args):
 
 if __name__ == "__main__":
     args = parse_args()
-    accelerator = Accelerator()
-    
-    # 设备信息打印
-    accelerator.print(f"Running on {accelerator.device}")
-    accelerator.print(f"Number of processes: {accelerator.num_processes}")
     
     if args.mode == "gen":
+        accelerator = Accelerator()
+    
+        # 设备信息打印
+        accelerator.print(f"Running on {accelerator.device}")
+        accelerator.print(f"Number of processes: {accelerator.num_processes}")
         generate_images(accelerator, args)
     elif args.mode == "eval":
-        evaluate_images(accelerator, args)
+        evaluate_images(args)
     elif args.mode == "sample_inference":  # 新增模式处理
+        accelerator = Accelerator()
+    
+        # 设备信息打印
+        accelerator.print(f"Running on {accelerator.device}")
+        accelerator.print(f"Number of processes: {accelerator.num_processes}")
         sample_inference(accelerator, args)
     
     accelerator.print("Operation completed")
@@ -224,11 +227,11 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --num_processes=4 -m evaluation.h
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_processes=4 -m evaluation.hps_evaluate \
     --mode eval \
-    --input_dir ./hps_outputs/Meissonic \
+    --input_dir ./outputs/hpsv2/Meissonic \
     --hps_version v2.0
 CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --num_processes=4 -m evaluation.hps_evaluate \
     --mode eval \
-    --input_dir ./hps_outputs/Meissonic_halton \
+    --input_dir ./outputs/hpsv2/Meissonic_halton \
     --hps_version v2.0
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_processes=4 -m evaluation.hps_evaluate \

@@ -12,7 +12,6 @@ build/
 develop-eggs/
 dist/
 downloads/
-checkpoints/
 eggs/
 .eggs/
 lib/
@@ -26,6 +25,10 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+checkpoints/
+outputs/
+sample_inference/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

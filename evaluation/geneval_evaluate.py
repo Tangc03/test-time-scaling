@@ -107,7 +107,7 @@ def generate_images(model_name, prompts, output_dir, n_samples, skip_existing, a
                 # 生成图像（假设模型内部已处理设备分配）
                 image = Meissonic(prompt, accelerator) if model_name == "Meissonic" else Meissonic_halton(prompt, accelerator)
                 image.save(output_file)
-                accelerator.print(f"  - Process {accelerator.process_index} saved sample {sample_idx+1}/{n_samples}")
+                # accelerator.print(f"  - Process {accelerator.process_index} saved sample {sample_idx+1}/{n_samples}")
             except Exception as e:
                 accelerator.print(f"Process {accelerator.process_index} error: {str(e)}")
 
@@ -153,7 +153,7 @@ def generate_sample_inference(accelerator, args):
             accelerator.wait_for_everyone()
 
             # 处理任务
-            for task in distributed_tasks:
+            for task in tqdm(distributed_tasks):
                 tag, prompt_idx, prompt = task
                 save_dir = os.path.join(output_root, tag, str(prompt_idx))
                 os.makedirs(save_dir, exist_ok=True)
@@ -227,14 +227,14 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_processes=4 -m evaluation.g
     --model Meissonic \
     --n_samples 4 \
     --output_dir ./outputs/geneval \
-    --metadata_file ./prompts/evaluation_metadata.jsonl
+    --metadata_file ./prompts/evaluation_metadata.jsonl \
     --skip_existing
 
 CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --num_processes=4 -m evaluation.geneval_evaluate \
     --model Meissonic_halton \
     --n_samples 4 \
     --output_dir ./outputs/geneval \
-    --metadata_file ./prompts/evaluation_metadata.jsonl
+    --metadata_file ./prompts/evaluation_metadata.jsonl \
     --skip_existing
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_processes=4 -m evaluation.geneval_evaluate \

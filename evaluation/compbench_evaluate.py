@@ -96,7 +96,7 @@ def generate_images_for_task(model_name, task_dir, all_prompts, args, accelerato
         accelerator.wait_for_everyone()
         
         # 处理分配的任务
-        for task in distributed_tasks:
+        for task in tqdm(distributed_tasks):
             style, prompt_idx, prompt = task
             save_dir = os.path.join(task_dir, style)
             os.makedirs(save_dir, exist_ok=True)
@@ -162,7 +162,7 @@ def generate_sample_inference(accelerator, args):
             accelerator.wait_for_everyone()
 
             # 处理任务
-            for task in distributed_tasks:
+            for task in tqdm(distributed_tasks):
                 task, prompt_idx, prompt = task
                 save_dir = os.path.join(output_root, task, str(prompt_idx))
                 os.makedirs(save_dir, exist_ok=True)
