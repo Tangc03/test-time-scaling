@@ -225,11 +225,11 @@ CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --num_processes=4 -m evaluation.h
     --output_dir ./outputs/hpsv2 \
     --skip_existing
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 accelerate launch --num_processes=4 -m evaluation.hps_evaluate \
+python -m evaluation.hps_evaluate \
     --mode eval \
     --input_dir ./outputs/hpsv2/Meissonic \
     --hps_version v2.0
-CUDA_VISIBLE_DEVICES=4,5,6,7 accelerate launch --num_processes=4 -m evaluation.hps_evaluate \
+python -m evaluation.hps_evaluate \
     --mode eval \
     --input_dir ./outputs/hpsv2/Meissonic_halton \
     --hps_version v2.0
