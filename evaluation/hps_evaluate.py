@@ -116,7 +116,7 @@ def evaluate_images(args):
     # 只在主进程执行评估
     print(f"Starting evaluation with HPS {args.hps_version}")
     score = hpsv2.evaluate(args.input_dir, hps_version=args.hps_version)
-    print(f"Final HPS-{args.hps_version} Score: {score}")
+    # print(f"Final HPS-{args.hps_version} Score: {score}")
 
 def sample_inference(accelerator, args):
     """基于采样prompts的生成实现"""
@@ -206,11 +206,11 @@ if __name__ == "__main__":
         accelerator = Accelerator()
     
         # 设备信息打印
-        accelerator.print(f"Running on {accelerator.device}")
-        accelerator.print(f"Number of processes: {accelerator.num_processes}")
+        Accelerator.print(f"Running on {accelerator.device}")
+        Accelerator.print(f"Number of processes: {accelerator.num_processes}")
         sample_inference(accelerator, args)
     
-    accelerator.print("Operation completed")
+    print("Operation completed")
 
 """
 running command:
