@@ -7,7 +7,7 @@ from diffusers.models import VQModel
 from diffusers.utils import replace_example_docstring
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline, ImagePipelineOutput
 
-from src.scheduler import Scheduler
+from scheduler_ import Scheduler
 from src.transformer import Transformer2DModel
 
 

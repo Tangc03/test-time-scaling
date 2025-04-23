@@ -19,7 +19,7 @@ from diffusers.models import UVit2DModel, VQModel
 from diffusers.utils import replace_example_docstring
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline, ImagePipelineOutput
 
-from src.scheduler import Scheduler
+from scheduler_ import Scheduler
 from src.transformer import Transformer2DModel
 from src.pipeline import _prepare_latent_image_ids
 

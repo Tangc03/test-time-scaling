@@ -14,7 +14,7 @@ from cog import BasePredictor, Input, Path
 
 from src.transformer import Transformer2DModel
 from src.pipeline import Pipeline
-from src.scheduler import Scheduler
+from scheduler_ import Scheduler
 
 
 MODEL_CACHE = "model_cache"

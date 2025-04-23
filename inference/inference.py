@@ -6,7 +6,7 @@ import torch
 from torchvision import transforms
 from src.transformer import Transformer2DModel
 from src.pipeline import Pipeline
-from src.scheduler import Scheduler
+from scheduler_ import Scheduler
 from transformers import (
     CLIPTextModelWithProjection,
     CLIPTokenizer,
