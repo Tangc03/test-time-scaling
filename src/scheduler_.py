@@ -39,6 +39,7 @@ class SchedulerOutput(BaseOutput):
 
     prev_sample: torch.Tensor
     pred_original_sample: torch.Tensor = None
+    priority_scores: torch.Tensor = None  # 新增字段，用于训练时收集数据
 
 
 class Scheduler(SchedulerMixin, ConfigMixin):
@@ -51,7 +52,11 @@ class Scheduler(SchedulerMixin, ConfigMixin):
         self,
         mask_token_id: int,
         masking_schedule: str = "cosine",
+        priority_predictor: Optional[torch.nn.Module] = None,  # 新增参数
+        use_priority_predictor: bool = False,  # 新增开关
     ):
+        self.priority_predictor = priority_predictor
+        self.use_priority_predictor = use_priority_predictor
         self.temperatures = None
         self.timesteps = None
 
@@ -119,11 +124,34 @@ class Scheduler(SchedulerMixin, ConfigMixin):
             # mask at least one
             mask_len = torch.max(torch.tensor([1], device=model_output.device), mask_len)
 
-            selected_probs = torch.gather(probs, -1, pred_original_sample[:, :, None])[:, :, 0]
-            # Ignores the tokens given in the input by overwriting their confidence.
-            selected_probs = torch.where(unknown_map, selected_probs, torch.finfo(selected_probs.dtype).max)
+            # 替换mask生成逻辑
+            if self.use_priority_predictor and self.priority_predictor is not None:
+                # 准备输入特征
+                current_masked = (sample == self.config.mask_token_id).float()  # [batch, seq]
+                timestep_emb = timestep.expand(sample.shape[0])  # [batch]
+                
+                # 获取优先级分数
+                with torch.no_grad():
+                    priority_scores = self.priority_predictor(
+                        model_output,  # [batch, seq, vocab]
+                        current_masked,
+                        timestep_emb
+                    )  # [batch, seq]
+                
+                # 生成masking
+                sorted_indices = torch.argsort(priority_scores, dim=-1, descending=True)
+                batch_indices = torch.arange(mask_len.size(0), device=device)[:, None]
+                masking = torch.zeros_like(sample, dtype=torch.bool)
+                for i in range(mask_len.size(0)):
+                    keep_indices = sorted_indices[i, :mask_len[i].long()]
+                    masking[i, keep_indices] = True
 
-            masking = mask_by_random_topk(mask_len, selected_probs, self.temperatures[step_idx], generator)
+            else:
+                selected_probs = torch.gather(probs, -1, pred_original_sample[:, :, None])[:, :, 0]
+                # Ignores the tokens given in the input by overwriting their confidence.
+                selected_probs = torch.where(unknown_map, selected_probs, torch.finfo(selected_probs.dtype).max)
+
+                masking = mask_by_random_topk(mask_len, selected_probs, self.temperatures[step_idx], generator)
 
             # Masks tokens with lower confidence.
             prev_sample = torch.where(masking, self.config.mask_token_id, pred_original_sample)
@@ -132,10 +160,15 @@ class Scheduler(SchedulerMixin, ConfigMixin):
             prev_sample = prev_sample.reshape(batch_size, height, width)
             pred_original_sample = pred_original_sample.reshape(batch_size, height, width)
 
-        if not return_dict:
-            return (prev_sample, pred_original_sample)
+        # if not return_dict:
+        #     return (prev_sample, pred_original_sample)
 
-        return SchedulerOutput(prev_sample, pred_original_sample)
+        # return SchedulerOutput(prev_sample, pred_original_sample)
+        
+        if return_dict:
+            return SchedulerOutput(prev_sample, pred_original_sample, priority_scores)
+        else:
+            return (prev_sample, pred_original_sample, priority_scores)
 
     def add_noise(self, sample, timesteps, generator=None):
         step_idx = (self.timesteps == timesteps).nonzero()
