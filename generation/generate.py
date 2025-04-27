@@ -54,7 +54,7 @@ import torch
 from torchvision import transforms
 from src.transformer import Transformer2DModel
 from src.pipeline import Pipeline
-from scheduler_ import Scheduler
+from scheduler_with_priority import Scheduler
 from transformers import CLIPTextModelWithProjection, CLIPTokenizer
 from diffusers import VQModel
 

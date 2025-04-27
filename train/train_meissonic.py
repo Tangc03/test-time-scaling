@@ -36,7 +36,7 @@ from transformers import (
 )
 import diffusers.optimization
 from diffusers import EMAModel, VQModel 
-from scheduler_ import Scheduler
+from scheduler_with_priority import Scheduler
 from diffusers.loaders import LoraLoaderMixin
 from diffusers.utils import is_wandb_available
 from src.pipeline import Pipeline

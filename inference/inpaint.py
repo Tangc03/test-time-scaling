@@ -7,7 +7,7 @@ import json
 from PIL import Image
 from src.transformer import Transformer2DModel
 from src.pipeline_inpaint import InpaintPipeline
-from scheduler_ import Scheduler
+from scheduler_with_priority import Scheduler
 from transformers import (
     CLIPTextModelWithProjection,
     CLIPTokenizer,

@@ -1,102 +1,106 @@
-import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import AdamW
 import argparse
 from src.priority_predictor import PriorityPredictor
 from accelerate import Accelerator
 import torch.nn.functional as F
-import os
 
-class PriorityDataset(Dataset):
-    def __init__(self, data_files):
-        self.data = []
-        for file in data_files:
-            data = torch.load(file)
-            self.data.append({
-                "logits": data["logits"],
-                "masks": data["masks"],
-                "timesteps": data["timesteps"],
-                "labels": data["labels"]
-            })
-    
-    def __len__(self):
-        return sum(len(d["logits"]) for d in self.data)
-    
-    def __getitem__(self, idx):
-        # 动态定位到具体样本
-        cum_sum = 0
-        for d in self.data:
-            if idx < cum_sum + len(d["logits"]):
-                local_idx = idx - cum_sum
-                return {
-                    "logits": d["logits"][local_idx],
-                    "mask": d["masks"][local_idx],
-                    "timestep": d["timesteps"][local_idx],
-                    "label": d["labels"][local_idx]
-                }
-            cum_sum += len(d["logits"])
-        raise IndexError
+import math, os, torch, json
+from datasets import load_dataset
+from src.priority_predictor import PriorityPredictor
 
-def collate_fn(batch):
-    return {
-        "logits": torch.stack([b["logits"] for b in batch]),
-        "mask": torch.stack([b["mask"] for b in batch]),
-        "timestep": torch.stack([b["timestep"] for b in batch]),
-        "label": torch.stack([b["label"] for b in batch])
-    }
+from src.load_transformer import load_trained_transformer  # 写成你已有的加载函数
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, required=True)
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--output_dir", type=str, default="priority_predictor")
-    args = parser.parse_args()
+from tqdm import tqdm
 
-    accelerator = Accelerator()
-    
-    # 加载数据集
-    data_files = [os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir) if f.endswith(".pt")]
-    dataset = PriorityDataset(data_files)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, collate_fn=collate_fn, shuffle=True)
-    
-    # 初始化模型和优化器
-    model = PriorityPredictor()
-    optimizer = AdamW(model.parameters(), lr=args.lr)
-    
-    model, optimizer, dataloader = accelerator.prepare(model, optimizer, dataloader)
-    
-    # 训练循环
-    for epoch in range(10):
-        for batch in dataloader:
-            logits = batch["logits"]  # [batch, seq, vocab]
-            mask = batch["mask"]  # [batch, seq]
-            timestep = batch["timestep"]  # [batch]
-            labels = batch["label"]  # [batch, seq]
-            
-            # 计算目标：预测正确的token是否被mask
+MASK_ID = 8191                   # 按你的 codebook_size-1 修改
+VOCAB   = 8192
+BATCH   = 8
+TIMESTEPS = 16                   # 与 inference scheduler 保持一致
+DEVICE  = "cuda"
+
+def timestep_embed(t, dim):
+    half = dim // 2
+    freqs = torch.exp(-torch.arange(half, device=DEVICE) *
+                      math.log(10000.) / (half-1))
+    args  = t.float().unsqueeze(-1) * freqs
+    emb   = torch.cat([torch.sin(args), torch.cos(args)], -1)
+    if dim % 2 == 1: emb = F.pad(emb, (0,1))
+    return emb
+
+def collate(batch):
+    # batch 里的 each['ids'] =  (L,)  ground-truth token ids
+    ids = [torch.tensor(b["ids"]) for b in batch]
+    ids = torch.stack(ids)   # (B,L)
+    return {"ids": ids}
+
+def build_dataloader():
+    ds = load_dataset("your_vq_dataset", split="train")  # **替换**
+    return DataLoader(ds, batch_size=BATCH,
+                      shuffle=True, collate_fn=collate)
+
+def collect_features(transformer, dataloader):
+    features, labels = [], []
+    transformer.eval()
+    for batch in tqdm(dataloader):
+        tgt = batch["ids"].to(DEVICE)                             # (B,L)
+        B, L = tgt.shape
+        x_t  = torch.full_like(tgt, MASK_ID)                      # 初始化全 MASK
+        for step in range(TIMESTEPS, -1, -1):
             with torch.no_grad():
-                pred_tokens = logits.argmax(dim=-1)  # [batch, seq]
-                correct = (pred_tokens == labels).float()  # [batch, seq]
-                target = correct * mask  # 只有mask的位置有监督信号
-            
-            # 前向计算
-            scores = model(logits, mask, timestep)  # [batch, seq]
-            
-            # 损失函数：BCEWithLogitsLoss
-            loss = F.binary_cross_entropy_with_logits(scores, target)
-            
-            # 反向传播
-            accelerator.backward(loss)
-            optimizer.step()
-            optimizer.zero_grad()
-            
-            # 日志记录
-            if accelerator.is_main_process:
-                print(f"Epoch {epoch}, Loss: {loss.item():.4f}")
-        
-        # 保存模型
-        accelerator.save_model(model, args.output_dir)
+                logits = transformer(x_t, timestep=step)   # (B, L, V)
+                logits = logits.permute(0,2,1) if logits.shape[1]==VOCAB else logits
+            mask_flag = (x_t == MASK_ID)                          # (B,L)
+            feat = torch.stack([logits, mask_flag.float()], dim=2) # 存储原始
+            features.append({"logits": logits.cpu(),
+                             "mask": mask_flag.cpu(),
+                             "timestep": torch.full((B,1), step),
+                             "gt": tgt.cpu()})
+            # teacher forcing：一步直接喂真值，免得推理误差累积
+            x_t = tgt
+    return features
+
+def create_dataset(features):
+    # 这里简单演示写文件 -> 再用 PyTorch Dataset 加载
+    torch.save(features, "priority_feats.pt")
+
+class PriorityDataset(torch.utils.data.Dataset):
+    def __init__(self, path):
+        self.data = torch.load(path)
+    def __len__(self): return len(self.data)
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        logits = item["logits"]              # (B,L,V)
+        mask   = item["mask"]                # (B,L)
+        gt     = item["gt"]
+        label  = (mask & (gt != MASK_ID)).long()  # (B,L) 1=应翻转
+        return {"logits": logits, "mask": mask, "label": label,
+                "timestep": item["timestep"]}
+
+def train_priority():
+    net = PriorityPredictor(VOCAB).to(DEVICE)
+    optim = torch.optim.AdamW(net.parameters(), 1e-4)
+    ds    = PriorityDataset("priority_feats.pt")
+    dl    = DataLoader(ds, batch_size=1, shuffle=True)   # 已含 (B,L,*) 维度
+    for epoch in range(3):
+        pbar = tqdm(dl)
+        for batch in pbar:
+            logits = batch["logits"].squeeze(0).to(DEVICE)   # (B,L,V)
+            mask   = batch["mask"].squeeze(0).to(DEVICE)
+            label  = batch["label"].squeeze(0).to(DEVICE).float()
+            t_step = int(batch["timestep"][0,0])
+            pred   = net(logits, mask.float(), t_step)        # (B,L)
+            loss   = F.binary_cross_entropy_with_logits(
+                        pred[mask], label[mask])              # 只计算 MASK 处
+            optim.zero_grad(); loss.backward(); optim.step()
+            pbar.set_description(f"loss {loss.item():.4f}")
+    torch.save(net.state_dict(), "priority_predictor.ckpt")
 
 if __name__ == "__main__":
-    main()
+    transformer = load_trained_transformer(
+        ckpt_dir="checkpoints/Meissonic",
+        device="cuda"
+    )
+    feats = collect_features(transformer, build_dataloader())
+    create_dataset(feats)
+    train_priority()
