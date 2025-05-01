@@ -35,7 +35,7 @@ def collate(batch):
     return {"ids": ids}
 
 def build_dataloader():
-    ds = load_dataset("imdb", split="train")  # **替换**
+    ds = load_dataset("your_dataset", split="train")  # **替换**
     return DataLoader(ds, batch_size=BATCH,
                       shuffle=True, collate_fn=collate)
 
