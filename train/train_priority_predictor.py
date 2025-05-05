@@ -200,7 +200,7 @@ if __name__ == "__main__":
     # 加载预训练模型
     transformer = load_trained_transformer(ckpt_dir=model_path, device=DEVICE)
     vq_model = VQModel.from_pretrained(model_path, subfolder="vqvae").to(DEVICE)
-    scheduler = Scheduler.from_pretrained(model_path, subfolder="scheduler")
+    scheduler = Scheduler.from_pretrained(model_path, subfolder="scheduler", vocab_size=VOCAB)
     tokenizer = CLIPTokenizer.from_pretrained(model_path, subfolder="tokenizer")
 
     # 构建 dataloader
