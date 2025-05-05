@@ -194,15 +194,17 @@ if __name__ == "__main__":
 
     # 加载 tokenizer（根据你的 text_encoder_architecture 选择）
     from transformers import CLIPTokenizer
-    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")  # 示例
+    # tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-base-patch32")  # 示例
+    
+    model_path = "checkpoints/Meissonic"
+    # 加载预训练模型
+    transformer = load_trained_transformer(ckpt_dir=model_path, device=DEVICE)
+    vq_model = VQModel.from_pretrained(model_path, subfolder="vqvae").to(DEVICE)
+    scheduler = Scheduler.from_pretrained(model_path, subfolder="scheduler")
+    tokenizer = CLIPTokenizer.from_pretrained(model_path, subfolder="tokenizer")
 
     # 构建 dataloader
     dataloader = build_dataloader(args, tokenizer)
-
-    # 加载预训练模型
-    transformer = load_trained_transformer(ckpt_dir="checkpoints/Meissonic", device=DEVICE)
-    vq_model = VQModel.from_pretrained("path/to/meissonic", subfolder="vqvae").to(DEVICE)
-    scheduler = Scheduler.from_pretrained("path/to/meissonic", subfolder="scheduler")
 
     # 收集特征
     feats = collect_features(transformer, vq_model, dataloader)
