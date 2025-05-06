@@ -182,8 +182,8 @@ def train_priority(transformer, vq_model, scheduler):
 if __name__ == "__main__":
     # 模拟 args 对象（根据你的需求配置）
     class Args:
-        instance_dataset = "HuggingFaceDataset"  # 或 "MyParquetDataset"
-        instance_data_dir = "../parquets_father_dir/"  # 数据集路径
+        instance_dataset = "HuggingFaceDataset"  # "HuggingFaceDataset" 或 "MyParquetDataset"
+        instance_data_dir = "parquets_father_dir"  # 数据集路径
         train_batch_size = 8
         dataloader_num_workers = 4
         resolution = 256
