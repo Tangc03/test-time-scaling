@@ -28,6 +28,7 @@ MANIFEST
 
 checkpoints/
 outputs/
+output/
 sample_inference/
 parquets_father_dir/
 
