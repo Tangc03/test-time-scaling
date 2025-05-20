@@ -39,7 +39,7 @@ class SchedulerOutput(BaseOutput):
 
     prev_sample: torch.Tensor
     pred_original_sample: torch.Tensor = None
-
+    unmask: torch.Tensor = None
 
 class Scheduler(SchedulerMixin, ConfigMixin):
     order = 1
@@ -141,9 +141,11 @@ class Scheduler(SchedulerMixin, ConfigMixin):
         if not return_dict:
             return (prev_sample, pred_original_sample)
         
-        # # use unmask to store a tensor that stores the unmasked tokens
-        # # every pixel if prev_sample is not the mask_token_id, then it is unmasked
-        # unmask = prev_sample != self.config.mask_token_id
+        # use unmask to store a tensor that stores the unmasked tokens
+        # every pixel if prev_sample is not the mask_token_id, then it is unmasked
+        unmask = prev_sample != self.config.mask_token_id
+        # unmask_num = unmask.sum()
+        # print("unmask_num: ", unmask_num)
 
         # # print("unmask shape: ", unmask.shape)
         # print("\n unmask: \n", unmask)
@@ -155,7 +157,7 @@ class Scheduler(SchedulerMixin, ConfigMixin):
         # delta = torch.abs(prev_sample - pred_original_sample)
         # print("delta: ", delta)
 
-        return SchedulerOutput(prev_sample, pred_original_sample)
+        return SchedulerOutput(prev_sample, pred_original_sample, unmask)
 
     def add_noise(self, sample, timesteps, generator=None):
         step_idx = (self.timesteps == timesteps).nonzero()

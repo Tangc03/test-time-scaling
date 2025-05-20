@@ -7,9 +7,14 @@ from diffusers.models import VQModel
 from diffusers.utils import replace_example_docstring
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline, ImagePipelineOutput
 
-from src.scheduler import Scheduler
+from src.scheduler_visualize import Scheduler
 from src.transformer import Transformer2DModel
 
+import os
+import numpy as np
+from PIL import Image
+import torchvision.transforms as T
+from torchvision.utils import save_image
 
 EXAMPLE_DOC_STRING = """
     Examples:
@@ -319,10 +324,41 @@ class Pipeline(DiffusionPipeline):
                     sample=latents,
                     generator=generator,
                 ).prev_sample
+                unmask = self.scheduler.step(
+                    model_output=model_output,
+                    timestep=timestep,
+                    sample=latents,
+                    generator=generator,
+                ).unmask
+
+                # print("unmask shape: ", unmask.shape)
+                # unmask shape:  torch.Size([1, 64, 64])
+                # unmask is a tensor of shape [1, 64, 64]
+
+                # print("i: ", i)
+                # print("timestep: ", timestep)
+
+                unmask_store_path = os.path.join("output", prompt[0], f"{num_inference_steps}", f"unmask_{i}.png")
+                # create the directory if it doesn't exist
+                os.makedirs(os.path.dirname(unmask_store_path), exist_ok=True)
+                # visualize the unmask and save it
+                unmask_binary = unmask.float()  # Convert bool to float (0.0 or 1.0)
+
+                # Get coordinates of unmasked pixels
+                unmasked_coords = torch.nonzero(unmask[0])  # Get indices where unmask is True
+                # Sort coordinates by row then column
+                sorted_coords = unmasked_coords[unmasked_coords[:, 0].argsort()]
+                print(f"Step {i} - Unmasked pixels coordinates:")
+                for coord in sorted_coords:
+                    print(f"  Row: {coord[0]}, Col: {coord[1]}")
 
                 # print("prompt: ", prompt)
-
+                # print("unmask: ", unmask)
                 # print("latents shape: ", latents.shape)
+                # print("latents: ", latents)
+                
+                # Save the binary mask as an image
+                save_image(unmask_binary, unmask_store_path)
 
                 if i == len(self.scheduler.timesteps) - 1 or (
                     (i + 1) > num_warmup_steps and (i + 1) % self.scheduler.order == 0
@@ -331,6 +367,37 @@ class Pipeline(DiffusionPipeline):
                     if callback is not None and i % callback_steps == 0:
                         step_idx = i // getattr(self.scheduler, "order", 1)
                         callback(step_idx, timestep, latents)
+
+                # needs_upcasting = self.vqvae.dtype == torch.float16 and self.vqvae.config.force_upcast
+
+                # if needs_upcasting:
+                #     self.vqvae.float()
+
+                # # check latents type and shape
+                # print("latents type: ", latents.dtype)
+                # print("latents shape: ", latents.shape)
+                # print("latents: ", latents)
+
+                # output = self.vqvae.decode(
+                #     latents,
+                #     force_not_quantize=True,
+                #     shape=(
+                #         batch_size,
+                #         height // self.vae_scale_factor,
+                #         width // self.vae_scale_factor,
+                #         self.vqvae.config.latent_channels,
+                #     ),
+                # ).sample.clip(0, 1)
+                # output = self.image_processor.postprocess(output, output_type)
+
+                # if needs_upcasting:
+                #     self.vqvae.half()
+
+                # output_to_save = output[0]
+                # print("output_to_save shape: ", output_to_save.shape)
+                # # output_store_path = os.path.join("output", prompt[0], f"{num_inference_steps}", f"output_{i}.png")
+                # # os.makedirs(os.path.dirname(output_store_path), exist_ok=True)
+                # # output_to_save.save(output_store_path)
 
         if output_type == "latent":
             output = latents
@@ -341,9 +408,9 @@ class Pipeline(DiffusionPipeline):
                 self.vqvae.float()
 
             # # check latents type and shape
-            # print("latents type: ", latents.dtype)
-            # print("latents shape: ", latents.shape)
-            # print("latents: ", latents)
+            # print("latents_ type: ", latents.dtype)
+            # print("latents_ shape: ", latents.shape)
+            # print("latents_: ", latents)
 
             output = self.vqvae.decode(
                 latents,

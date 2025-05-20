@@ -5,8 +5,15 @@ sys.path.append("./")
 import torch
 from torchvision import transforms
 from src.transformer import Transformer2DModel
-from src.pipeline import Pipeline
-from src.scheduler import Scheduler
+
+visualize = True
+if visualize:
+    from src.pipeline_visualize import Pipeline
+    from src.scheduler_visualize import Scheduler
+else:
+    from src.pipeline import Pipeline
+    from src.scheduler import Scheduler
+
 from transformers import (
     CLIPTextModelWithProjection,
     CLIPTokenizer,
@@ -14,6 +21,9 @@ from transformers import (
 from diffusers import VQModel
 
 import os
+import numpy as np
+
+torch.set_printoptions(threshold=np.inf)
 os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 device = 'cuda'
@@ -31,24 +41,31 @@ pipe=Pipeline(vq_model, tokenizer=tokenizer,text_encoder=text_encoder,transforme
 
 pipe = pipe.to(device)
 
-steps = 100
+steps = 48
 CFG = 9
 resolution = 1024 
 negative_prompt = "worst quality, low quality, low res, blurry, distortion, watermark, logo, signature, text, jpeg artifacts, signature, sketch, duplicate, ugly, identifying mark"
 
+# prompts = [
+#     "A puppy",
+#     "Two actors are posing for a pictur with one wearing a black and white face paint.",
+#     "A large body of water with a rock in the middle and mountains in the background.",
+#     "A white and blue coffee mug with a picture of a man on it.",
+#     "A statue of a man with a crown on his head.",
+#     "A man in a yellow wet suit is holding a big black dog in the water.",
+#     "A white table with a vase of flowers and a cup of coffee on top of it.",
+#     "A woman stands on a dock in the fog.",
+#     "A woman is standing next to a picture of another woman."
+# ]
+
+# batched_generation = True
+
 prompts = [
-    "A puppy",
-    "Two actors are posing for a pictur with one wearing a black and white face paint.",
-    "A large body of water with a rock in the middle and mountains in the background.",
-    "A white and blue coffee mug with a picture of a man on it.",
-    "A statue of a man with a crown on his head.",
-    "A man in a yellow wet suit is holding a big black dog in the water.",
-    "A white table with a vase of flowers and a cup of coffee on top of it.",
-    "A woman stands on a dock in the fog.",
-    "A woman is standing next to a picture of another woman."
+    "a photo of a toothbrush and a snowboard"
 ]
 
-batched_generation = True
+batched_generation = False
+
 num_images = len(prompts) if batched_generation else 1
 
 images = pipe(
